@@ -87,10 +87,12 @@ public:
             std::unique_lock<std::mutex> ul(m_queueMtx);
             while (m_queue.empty() && !m_writeEnd)
             {
+                // std::cout << "等待队列不为空的信号....\n";
                 m_notEmpty_condVar.wait(ul, [&]() { return !m_queue.empty() || (m_queue.empty() && m_writeEnd); });
             }
             if (!m_queue.empty())
             {
+                // std::cout << "队列弹出元素\n";
                 // pop之前是满载状态，发出notFull信号
                 if (m_queue.size() == m_maxSize)
                     notify_notFull = true;

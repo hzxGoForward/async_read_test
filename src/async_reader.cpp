@@ -22,7 +22,7 @@ enum class STATUS
 
 static enum STATUS m_read_state = STATUS::READY;
 static std::string m_file_dir = "";
-static CThreadSafeQueue<CDataPkg *> m_read_buff(256);
+static CThreadSafeQueue<CDataPkg *> m_read_buff(2);
 static const int m_read_len = 256;
 static boost::asio::posix::stream_descriptor *m_stream_ptr = nullptr;
 static int64_t m_read_size = 0;
@@ -90,8 +90,9 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
 {
     if (datapkg->data && read > 0)
     {
-        m_read_buff.push(datapkg);
+        std::cout << "read " << read << " Bytes \n";
         datapkg->length = read;
+        m_read_buff.push(datapkg);
     }
     m_read_size += read;
 
@@ -111,7 +112,6 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
 
 void read_data_daemon(void *handle)
 {
-    m_read_state = STATUS::READING;
     m_stream_ptr = new boost::asio::posix::stream_descriptor(m_ios, *(int *)(handle));
     std::cout << "start reading thread\n";
     CDataPkg *data_pkg = new CDataPkg(m_read_len);
@@ -130,13 +130,15 @@ int read_item_data(void *handle, char *buf, int *len)
     {
         return -1;
     }
-
-    std::cout << "reading ...\n";
+    std::cout << "ready to read data \n";
     if (m_read_state == STATUS::READY)
     {
-        std::async(std::launch::async, read_data_daemon, handle);
+        m_read_state = STATUS::READING;
+        std::thread t(read_data_daemon, handle);
+        t.detach();
     }
     CDataPkg *data_pkg = nullptr;
+    std::cout << "popping data ...\n";
     bool pop_state = m_read_buff.pop(data_pkg);
     if (pop_state)
     {
@@ -154,24 +156,23 @@ int close_item_reader(void *handle)
         close(*(int *)handle);
     }
     return 0;
-
 }
 
-uint64_t get_item_number(void *handle) {
+uint64_t get_item_number(void *handle)
+{
     std::ifstream *is = (std::ifstream *)handle;
     is->seekg(0, is->beg);
     uint64_t n = 0;
     std::string s = "s";
-    while (s.size() > 0 && !is->eof()) {
+    while (s.size() > 0 && !is->eof())
+    {
         s.clear();
         std::getline(*is, s);
-        if (s.size() > 0) {
-             n++;
+        if (s.size() > 0)
+        {
+            n++;
         }
     }
     is->seekg(0, is->beg);
     return n;
 }
-
-
-
