@@ -149,9 +149,7 @@ protected:
     std::list<T> m_queue;
     size_type m_maxSize;
     bool m_writeEnd;
-    // std::condition_variable m_condVar;
-
-    // 新建两个条件变量,非空和非满
+    // two cv to notify not empty and not full.
     std::condition_variable m_notEmpty_condVar;
     std::condition_variable m_notFull_condVar;
 

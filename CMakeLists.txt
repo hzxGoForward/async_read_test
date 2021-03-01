@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
-PROJECT(async_read_write VERSION 0.1.0)
+PROJECT(mnist VERSION 0.1.0)
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
 

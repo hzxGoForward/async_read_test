@@ -8,10 +8,20 @@
 #include <future>
 #include <errno.h>
 #include <fcntl.h>
-#include <unistd.h>
+
 #include <boost/asio.hpp>
 #include <boost/asio/buffer.hpp>
+
+
+#ifndef WIN32
+#include <unistd.h>
 #include <boost/asio/posix/stream_descriptor.hpp>
+#endif
+
+#ifdef WIN32
+#include <boost/asio/windows/random_access_handle.hpp>
+#include <windows.h>
+#endif
 
 enum class STATUS
 {
@@ -24,10 +34,16 @@ static enum STATUS m_read_state = STATUS::READY;
 static std::string m_file_dir = "";
 static CThreadSafeQueue<CDataPkg *> m_read_buff(256);
 static const int m_read_len = 256;
-static boost::asio::posix::stream_descriptor *m_stream_ptr = nullptr;
 static int64_t m_read_size = 0;
 static int64_t m_file_size = 0;
 static boost::asio::io_service m_ios;
+#ifndef WIN32
+static boost::asio::posix::stream_descriptor* m_stream_ptr = nullptr;
+#endif
+
+#ifdef WIN32
+static boost::asio::windows::random_access_handle* m_stream_ptr = nullptr;
+#endif
 
 void garbage_collect()
 {
@@ -49,7 +65,7 @@ void garbage_collect()
 
 int64_t get_file_size(const char *file_name)
 {
-    std::ifstream ifs(file_name, std::ios::in);
+    std::ifstream ifs(file_name, std::ios::in|std::ios::binary);
     if (!ifs)
         throw std::invalid_argument("can not open file: " + std::string(file_name));
     ifs.seekg(0, ifs.end);
@@ -60,16 +76,22 @@ int64_t get_file_size(const char *file_name)
 
 void *create_item_reader(const char *file_path)
 {
-    m_file_dir = std::string(file_path);
-    int *fm = new int(open(m_file_dir.data(), O_RDONLY));
-    if (*fm < 0)
-    {
-        delete fm;
-        return nullptr;
-    }
-    m_read_size = 0;
-    m_file_size = get_file_size(m_file_dir.data());
+
+    m_file_size = get_file_size(file_path);
     std::cout << file_path << " size: " << m_file_size << std::endl;
+    m_file_dir = std::string(file_path);
+#ifndef WIN32
+    int *fm = new int(open(m_file_dir.data(), O_RDONLY));
+#endif
+
+#ifdef WIN32
+    HANDLE* fm = new HANDLE(::CreateFile(
+        m_file_dir.data(), GENERIC_READ, 0, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0));
+#endif 
+    
+    m_read_size = 0;
+    
+    
     return fm;
 }
 
@@ -100,8 +122,17 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
     {
         CDataPkg *buff_ptr = new CDataPkg(m_read_len);
         boost::asio::mutable_buffers_1 dataBuff(buff_ptr->data, buff_ptr->length);
+
+#ifndef WIN32
         boost::asio::async_read(*m_stream_ptr, dataBuff,
                                 std::bind(read_handler, buff_ptr, std::placeholders::_1, std::placeholders::_2));
+#endif
+#ifdef WIN32
+        boost::asio::async_read_at(*m_stream_ptr, m_read_size, dataBuff,
+            std::bind(read_handler, buff_ptr, std::placeholders::_1, std::placeholders::_2));
+#endif
+        
+
     }
     else
     {
@@ -112,12 +143,22 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
 
 void read_data_daemon(void *handle)
 {
+#ifndef WIN32
+
     m_stream_ptr = new boost::asio::posix::stream_descriptor(m_ios, *(int *)(handle));
-    std::cout << "start reading thread\n";
+#endif
+
+#ifdef WIN32
+    m_stream_ptr = new boost::asio::windows::random_access_handle(m_ios, *(HANDLE*)handle);
+#endif
+
+    std::cout << "start reading thread..........\n";
     CDataPkg *data_pkg = new CDataPkg(m_read_len);
     read_handler(data_pkg, boost::system::error_code(), 0);
     m_ios.run();
     m_read_buff.set_end();
+    close_item_reader(handle);
+    garbage_collect();
     std::cout << "reading finish, reading thread exit ------------------\n";
 }
 
@@ -153,7 +194,12 @@ int close_item_reader(void *handle)
 {
     if (handle && *((int *)handle) < 0)
     {
+#ifndef WIN32
         close(*(int *)handle);
+#endif
+#ifdef WIN32
+        CloseHandle(handle);
+#endif
     }
     return 0;
 }
