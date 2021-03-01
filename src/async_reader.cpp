@@ -22,7 +22,7 @@ enum class STATUS
 
 static enum STATUS m_read_state = STATUS::READY;
 static std::string m_file_dir = "";
-static CThreadSafeQueue<CDataPkg *> m_read_buff(2);
+static CThreadSafeQueue<CDataPkg *> m_read_buff(256);
 static const int m_read_len = 256;
 static boost::asio::posix::stream_descriptor *m_stream_ptr = nullptr;
 static int64_t m_read_size = 0;
