@@ -13,10 +13,10 @@ int main()
 	{
 #ifdef WIN32
 		// t10k-images.idx3-ubyte train-labels-idx1-ubyte
-		std::string file_dir = "D:\\train-labels-idx1-ubyte";
+		std::string file_dir = "D:\\train-labels.idx1-ubyte";
 #endif
 #ifndef WIN32
-		std::string file_dir = "/home/zxhu/gitLab/dataset/testdata.manual.2009.06.14.csv";
+		std::string file_dir = "/home/zxhu/gitLab/dataset/data/t10k-images.idx3-ubyte";
 #endif
 		/*std::cout << "please input a path:\n";
 		std::cin >> file_dir;*/
