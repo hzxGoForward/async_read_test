@@ -1,6 +1,6 @@
 ﻿#pragma once
-#ifndef _ASYNC_READER_H
-#define _ASYNC_READER_H
+#ifndef _MINST_READER_H
+#define _MINST_READER_H
 #include "stdint.h"
 #include <algorithm>
 #ifdef __cplusplus

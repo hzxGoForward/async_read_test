@@ -3,7 +3,7 @@ PROJECT(mnist VERSION 0.1.0)
 
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
-SET(SOURCES ./src/main.cpp ./src/async_reader.cpp ./src/threadSafeQueue.h ./src/async_reader.h)
+SET(SOURCES ./src/main.cpp ./src/mnist_reader.cpp ./src/threadSafeQueue.h ./src/mnist_reader.h)
 
 
 ADD_EXECUTABLE(${PROJECT_NAME} ${SOURCES})
