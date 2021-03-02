@@ -78,21 +78,21 @@ void *create_item_reader(const char *file_path)
 {
     m_file_dir = std::string(file_path);
     m_file_size = get_file_size(m_file_dir.data());
-    item_num = get_item_number(nullptr);
+    
     std::cout << file_path << " size: " << m_file_size << std::endl;
     
 #ifndef WIN32
     int *fm = new int(open(m_file_dir.data(), O_RDONLY));
 #else
     HANDLE* fm = new HANDLE(::CreateFile(
-        m_file_dir.data(), GENERIC_READ, 0, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0));
+        m_file_dir.data(), GENERIC_READ, FILE_SHARE_READ, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0));
     if (*fm == INVALID_HANDLE_VALUE) {
         throw std::invalid_argument("can not open " + std::string(file_path));
     }
 #endif 
     
     m_read_size = 0;
-   
+    item_num = get_item_number(fm);
     return fm;
 }
 
@@ -113,7 +113,7 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
 {
     if (datapkg->data && read > 0)
     {
-        std::cout << "read " << read << " Bytes \n";
+        // std::cout << "read " << read << " Bytes \n";
         datapkg->length = read;
         m_read_buff.push(datapkg);
     }
@@ -132,7 +132,6 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
         boost::asio::async_read_at(*m_stream_ptr, m_read_size, dataBuff,
             std::bind(read_handler, buff_ptr, std::placeholders::_1, std::placeholders::_2));
 #endif
-       
     }
     else
     {
@@ -145,46 +144,49 @@ void read_data_daemon(void *handle)
 {
 #ifndef WIN32
 
-    m_stream_ptr = new boost::asio::posix::stream_descriptor(m_ios, *(int *)(handle));
+    m_stream_ptr = new boost::asio::posix::stream_descriptor(m_ios, *(int*)(handle));
 #endif
 
 #ifdef WIN32
     m_stream_ptr = new boost::asio::windows::random_access_handle(m_ios, *(HANDLE*)handle);
 #endif
 
-    std::cout << "start reading thread..........item num: " << item_num << std::endl;;
+    std::cout << "start reading thread..........\n";
     CDataPkg *data_pkg = new CDataPkg(m_read_len);
     read_handler(data_pkg, boost::system::error_code(), 0);
     m_ios.run();
     m_read_buff.set_end();
-    close_item_reader(handle);
-    garbage_collect();
+    
     std::cout << "reading finish, reading thread exit ------------------\n";
 }
 
 int read_item_data(void *handle, char *buf, int *len)
 {
-    *len = 0;
     if (!handle || m_read_buff.is_end() && m_read_buff.empty())
     {
+        close_item_reader(handle);
+        garbage_collect();
         return -1;
+        *len = 0;
     }
-    std::cout << "ready to read data \n";
+    
     if (m_read_state == STATUS::READY)
     {
+        std::cout << "ready to read data \n";
         m_read_state = STATUS::READING;
         std::thread t(read_data_daemon, handle);
         t.detach();
     }
     CDataPkg *data_pkg = nullptr;
-    std::cout << "popping data ...\n";
+    /*std::cout << "popping data ...\n";*/
     bool pop_state = m_read_buff.pop(data_pkg);
     if (pop_state)
     {
         memcpy(buf, data_pkg->data, data_pkg->length);
         *len = data_pkg->length;
     }
-    std::cout << "fetch data from queue, pop state: " << pop_state << ",fetch Bytes: " << *len << std::endl;
+    
+    std::cout << "fetch data from queue, pop state: " << pop_state << ", fetch Bytes: " << *len << std::endl;
     return 0;
 }
 
@@ -203,7 +205,6 @@ int close_item_reader(void *handle)
 }
 
 
-
 uint64_t get_item_number(void *handle)
 {
     if (item_num != 0)
@@ -218,10 +219,14 @@ uint64_t get_item_number(void *handle)
     }
     m_read_size += 8;
     uint32_t label = 0x00000801, image = 0x00000803;
-    if (magic_number == image) {
+     if (magic_number == image) {
         uint32_t rows = 0, cols = 0;
         ifs.read(reinterpret_cast<char*>(&rows), 4);
         ifs.read(reinterpret_cast<char*>(&cols), 4);
+        if (is_little_endian()) {  // MNIST data is big-endian format
+            reverse_endian(&rows);
+            reverse_endian(&cols);
+        }
         m_read_size += 8;
         m_read_len = rows * cols;
     }
@@ -230,5 +235,13 @@ uint64_t get_item_number(void *handle)
         throw std::logic_error("error file format " + m_file_dir);
     }
     ifs.close();
+
+#ifndef WIN32
+    int offset = 8;
+    if (magic_number == image)
+        offset = 16;
+    char buf[16] = { 0 };
+    read(*reinterpret_cast<int*>(handle), buf, offset);
+#endif
     return item_num;    
 }

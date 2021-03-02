@@ -12,7 +12,8 @@ int main()
 	try
 	{
 #ifdef WIN32
-		std::string file_dir = "D:\\train-labels-idx1-ubyte";
+		// t10k-images.idx3-ubyte train-labels-idx1-ubyte
+		std::string file_dir = "D:\\t10k-images.idx3-ubyte";
 #endif
 #ifndef WIN32
 		std::string file_dir = "/home/zxhu/gitLab/dataset/testdata.manual.2009.06.14.csv";
@@ -23,15 +24,18 @@ int main()
 		void* handle = create_item_reader(file_dir.data());
 		std::cout << "item number: " << get_item_number(handle)<<"\n";
 		std::cout << "start to read...\n";
-		char buf[512] = { 0 };
+		
 
-		int len = 0;
+		
 		int read_len = 0;
+		int len = 0;
 		do
 		{
-			std::cout << "total fetch " << read_len << " Bytes\n";
+			len = 0;
+			char buf[1024] = { 0 };
 			read_item_data(handle, buf, &len);
 			read_len += len;
+			std::cout << "current read: " << len << ", total fetch " << read_len << " Bytes\n";
 		} while (len > 0);
 
 		std::cout << "reading finish, total reading " << read_len << " Bytes----\n";
