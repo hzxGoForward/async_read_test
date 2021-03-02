@@ -30,7 +30,7 @@ enum class STATUS
 
 static enum STATUS m_read_state = STATUS::READY;
 static std::string m_file_dir = "";
-static CThreadSafeQueue<CDataPkg *> m_read_buff(256);
+static CThreadSafeQueue<CDataPkg_ptr_t> m_read_buff(256);
 static int m_read_len = 512;
 static int64_t m_read_size = 0;
 static int64_t m_file_size = -1;
@@ -109,11 +109,13 @@ int reset_for_read(void *handle)
     return 0;
 }
 
-void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t read)
+void read_handler(const CDataPkg_ptr_t datapkg, const boost::system::error_code e, size_t read)
 {
     if (datapkg->data && read > 0)
     {
-        // std::cout << "read " << read << " Bytes \n";
+        std::string str(read, 0);
+        memcpy((uint8_t*)&str[0], datapkg->data.get(), read);
+        std::cout << "read " << read << " Bytes, data length:  "<< str.size()<<std::endl;
         datapkg->length = read;
         m_read_buff.push(datapkg);
     }
@@ -121,16 +123,17 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
 
     if (m_read_size < m_file_size)
     {
-        CDataPkg *buff_ptr = new CDataPkg(m_read_len);
-        boost::asio::mutable_buffers_1 dataBuff(buff_ptr->data, buff_ptr->length);
+        CDataPkg_ptr_t read_buff_ptr = std::make_shared<CDataPkg>(m_read_len);
+        std::cout << "generate string length: " << std::string(read_buff_ptr->data.get()).size() << std::endl;
+        boost::asio::mutable_buffers_1 dataBuff(static_cast<void*>(read_buff_ptr->data.get()), m_read_len);
 
 #ifndef WIN32
         boost::asio::async_read(*m_stream_ptr, dataBuff,
-                                std::bind(read_handler, buff_ptr, std::placeholders::_1, std::placeholders::_2));
+                                std::bind(read_handler, read_buff_ptr, std::placeholders::_1, std::placeholders::_2));
 #endif
 #ifdef WIN32
         boost::asio::async_read_at(*m_stream_ptr, m_read_size, dataBuff,
-            std::bind(read_handler, buff_ptr, std::placeholders::_1, std::placeholders::_2));
+            std::bind(read_handler, read_buff_ptr, std::placeholders::_1, std::placeholders::_2));
 #endif
     }
     else
@@ -152,8 +155,8 @@ void read_data_daemon(void *handle)
 #endif
 
     std::cout << "start reading thread..........\n";
-    CDataPkg *data_pkg = new CDataPkg(m_read_len);
-    read_handler(data_pkg, boost::system::error_code(), 0);
+    CDataPkg_ptr_t read_buff_ptr = std::make_shared<CDataPkg>(m_read_len);
+    read_handler(read_buff_ptr, boost::system::error_code(), 0);
     m_ios.run();
     m_read_buff.set_end();
     
@@ -177,17 +180,19 @@ int read_item_data(void *handle, char *buf, int *len)
         std::thread t(read_data_daemon, handle);
         t.detach();
     }
-    CDataPkg *data_pkg = nullptr;
+
+    CDataPkg_ptr_t read_buff_ptr = nullptr;
     /*std::cout << "popping data ...\n";*/
-    bool pop_state = m_read_buff.pop(data_pkg);
+    bool pop_state = m_read_buff.pop(read_buff_ptr);
     if (pop_state)
     {
-        memcpy(buf, data_pkg->data, data_pkg->length);
-        *len = data_pkg->length;
+        memcpy((uint8_t*)buf, (read_buff_ptr->data.get()), read_buff_ptr->length);
+        *len = read_buff_ptr->length;
+        // std::cout << "fetch data length: " << buf.size() << std::endl;
     }
-    
+
     std::cout << "fetch data from queue, pop state: " << pop_state << ", fetch Bytes: " << *len << std::endl;
-    return 0;
+    return *len;
 }
 
 int close_item_reader(void *handle)

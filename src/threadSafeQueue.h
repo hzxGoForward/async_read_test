@@ -156,24 +156,27 @@ protected:
 #undef GUARD_LOCK
 };
 
+typedef std::shared_ptr<char> char_ptr_t;
+
+template <typename T>
+std::shared_ptr<T> make_shared_array(size_t size)
+{
+    return std::shared_ptr<T>(new T[size], std::default_delete<T[]>());
+    // return std::shared_ptr<T>(new T[size]);
+}
+
 struct CDataPkg
 {
     int64_t length;
-    char *data;
-    CDataPkg(int64_t sz = -1) : length(sz)
+    char_ptr_t data;
+    CDataPkg(std::streamsize sz = 0) : length(sz)
     {
-        if (length > 0)
-            data = new char[length];
-        else
-            data = nullptr;
-    }
-
-    CDataPkg *operator=(const CDataPkg &dp)
-    {
-        data = dp.data;
-        length = dp.length;
-        return this;
+        data = make_shared_array<char>(length);
     }
 };
+
+
+typedef std::shared_ptr<CDataPkg> CDataPkg_ptr_t;
+
 
 #endif

@@ -20,7 +20,7 @@ int main()
 #endif
 		/*std::cout << "please input a path:\n";
 		std::cin >> file_dir;*/
-
+		
 		void* handle = create_item_reader(file_dir.data());
 		std::cout << "item number: " << get_item_number(handle)<<"\n";
 		std::cout << "start to read...\n";
@@ -30,10 +30,13 @@ int main()
 		do
 		{
 			len = 0;
-			char buf[1024] = { 0 };
+			char buf[1024];
 			read_item_data(handle, buf, &len);
 			read_len += len;
-			std::cout << "current read: " << len << ", total fetch " << read_len << " Bytes\n";
+			std::string ret(len, 0);
+			memcpy((uint8_t*)&ret[0], buf, len);
+			std::cout << "current read: " << len << ", total fetch " << read_len << " Bytes string length: "<< ret.size()<<std::endl;
+
 		} while (len > 0);
 
 		std::cout << "reading finish, total reading " << read_len << " Bytes----\n";
