@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #ifndef _ASYNC_READER_H
 #define _ASYNC_READER_H
 #include "stdint.h"
@@ -15,7 +15,21 @@ extern "C"
     void garbage_collect();
     int64_t get_file_size(const char *file_name);
     uint64_t get_item_number(void *handle);
+
 #ifdef __cplusplus
+
+}
+
+inline bool is_little_endian() {
+    int x = 1;
+    return *reinterpret_cast<char*>(&x) != 0;
+}
+
+template <typename T>
+T* reverse_endian(T* p) {
+    std::reverse(reinterpret_cast<char*>(p),
+        reinterpret_cast<char*>(p) + sizeof(T));
+    return p;
 }
 #endif
 

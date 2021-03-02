@@ -8,10 +8,8 @@
 #include <future>
 #include <errno.h>
 #include <fcntl.h>
-
 #include <boost/asio.hpp>
 #include <boost/asio/buffer.hpp>
-
 
 #ifndef WIN32
 #include <unistd.h>
@@ -33,21 +31,21 @@ enum class STATUS
 static enum STATUS m_read_state = STATUS::READY;
 static std::string m_file_dir = "";
 static CThreadSafeQueue<CDataPkg *> m_read_buff(256);
-static const int m_read_len = 256;
+static int m_read_len = 512;
 static int64_t m_read_size = 0;
-static int64_t m_file_size = 0;
+static int64_t m_file_size = -1;
+static uint32_t item_num = 0;
 static boost::asio::io_service m_ios;
+
+
 #ifndef WIN32
 static boost::asio::posix::stream_descriptor* m_stream_ptr = nullptr;
-#endif
-
-#ifdef WIN32
+#else
 static boost::asio::windows::random_access_handle* m_stream_ptr = nullptr;
 #endif
 
 void garbage_collect()
 {
-
     if (m_read_buff.empty() == false)
     {
         m_read_buff.clear();
@@ -59,39 +57,42 @@ void garbage_collect()
         delete m_stream_ptr;
         m_stream_ptr = nullptr;
     }
-
+    item_num = -1;
     m_read_state = STATUS::READY;
 }
 
 int64_t get_file_size(const char *file_name)
 {
+    if (m_file_size != -1)
+        return m_file_size;
     std::ifstream ifs(file_name, std::ios::in|std::ios::binary);
     if (!ifs)
         throw std::invalid_argument("can not open file: " + std::string(file_name));
     ifs.seekg(0, ifs.end);
-    int64_t size = ifs.tellg();
+    m_file_size = ifs.tellg();
     ifs.close();
-    return size;
+    return m_file_size;
 }
 
 void *create_item_reader(const char *file_path)
 {
-
-    m_file_size = get_file_size(file_path);
-    std::cout << file_path << " size: " << m_file_size << std::endl;
     m_file_dir = std::string(file_path);
+    m_file_size = get_file_size(m_file_dir.data());
+    item_num = get_item_number(nullptr);
+    std::cout << file_path << " size: " << m_file_size << std::endl;
+    
 #ifndef WIN32
     int *fm = new int(open(m_file_dir.data(), O_RDONLY));
-#endif
-
-#ifdef WIN32
+#else
     HANDLE* fm = new HANDLE(::CreateFile(
         m_file_dir.data(), GENERIC_READ, 0, 0, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0));
+    if (*fm == INVALID_HANDLE_VALUE) {
+        throw std::invalid_argument("can not open " + std::string(file_path));
+    }
 #endif 
     
     m_read_size = 0;
-    
-    
+   
     return fm;
 }
 
@@ -131,8 +132,7 @@ void read_handler(CDataPkg *datapkg, const boost::system::error_code e, size_t r
         boost::asio::async_read_at(*m_stream_ptr, m_read_size, dataBuff,
             std::bind(read_handler, buff_ptr, std::placeholders::_1, std::placeholders::_2));
 #endif
-        
-
+       
     }
     else
     {
@@ -152,7 +152,7 @@ void read_data_daemon(void *handle)
     m_stream_ptr = new boost::asio::windows::random_access_handle(m_ios, *(HANDLE*)handle);
 #endif
 
-    std::cout << "start reading thread..........\n";
+    std::cout << "start reading thread..........item num: " << item_num << std::endl;;
     CDataPkg *data_pkg = new CDataPkg(m_read_len);
     read_handler(data_pkg, boost::system::error_code(), 0);
     m_ios.run();
@@ -164,9 +164,7 @@ void read_data_daemon(void *handle)
 
 int read_item_data(void *handle, char *buf, int *len)
 {
-    buf = nullptr;
     *len = 0;
-
     if (!handle || m_read_buff.is_end() && m_read_buff.empty())
     {
         return -1;
@@ -183,7 +181,7 @@ int read_item_data(void *handle, char *buf, int *len)
     bool pop_state = m_read_buff.pop(data_pkg);
     if (pop_state)
     {
-        buf = data_pkg->data;
+        memcpy(buf, data_pkg->data, data_pkg->length);
         *len = data_pkg->length;
     }
     std::cout << "fetch data from queue, pop state: " << pop_state << ",fetch Bytes: " << *len << std::endl;
@@ -204,21 +202,33 @@ int close_item_reader(void *handle)
     return 0;
 }
 
+
+
 uint64_t get_item_number(void *handle)
 {
-    std::ifstream *is = (std::ifstream *)handle;
-    is->seekg(0, is->beg);
-    uint64_t n = 0;
-    std::string s = "s";
-    while (s.size() > 0 && !is->eof())
-    {
-        s.clear();
-        std::getline(*is, s);
-        if (s.size() > 0)
-        {
-            n++;
-        }
+    if (item_num != 0)
+        return item_num;
+    std::ifstream ifs(m_file_dir.data(), std::ios::in | std::ios::binary);
+    uint32_t magic_number = 0;
+    ifs.read(reinterpret_cast<char*>(&magic_number), 4);
+    ifs.read(reinterpret_cast<char*>(&item_num), 4);
+    if (is_little_endian()) {  // MNIST data is big-endian format
+        reverse_endian(&magic_number);
+        reverse_endian(&item_num);
     }
-    is->seekg(0, is->beg);
-    return n;
+    m_read_size += 8;
+    uint32_t label = 0x00000801, image = 0x00000803;
+    if (magic_number == image) {
+        uint32_t rows = 0, cols = 0;
+        ifs.read(reinterpret_cast<char*>(&rows), 4);
+        ifs.read(reinterpret_cast<char*>(&cols), 4);
+        m_read_size += 8;
+        m_read_len = rows * cols;
+    }
+    else if(magic_number != label) {
+        ifs.close();
+        throw std::logic_error("error file format " + m_file_dir);
+    }
+    ifs.close();
+    return item_num;    
 }
