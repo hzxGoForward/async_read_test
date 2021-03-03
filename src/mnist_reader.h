@@ -1,8 +1,10 @@
 ﻿#pragma once
 #ifndef _MINST_READER_H
 #define _MINST_READER_H
+
+
 #include "stdint.h"
-#include <algorithm>
+
 #include "threadSafeQueue.h"
 #include <atomic>
 #include <functional>
@@ -15,6 +17,7 @@
 #include <fcntl.h>
 #include <boost/asio.hpp>
 #include <boost/asio/buffer.hpp>
+#include <algorithm>
 
 #ifndef WIN32
 #include <unistd.h>
@@ -23,20 +26,6 @@
 #include <boost/asio/windows/random_access_handle.hpp>
 #include <windows.h>
 #endif
-
-inline bool is_little_endian()
-{
-	int x = 1;
-	return *reinterpret_cast<char*>(&x) != 0;
-}
-
-template <typename T>
-inline T* reverse_endian(T* p)
-{
-	std::reverse(reinterpret_cast<char*>(p),
-		reinterpret_cast<char*>(p) + sizeof(T));
-	return p;
-}
 
 #ifdef __cplusplus
 extern "C"
@@ -51,6 +40,20 @@ extern "C"
 	uint64_t get_item_number(void* handle);
 
 #ifdef __cplusplus
+}
+
+inline bool is_little_endian()
+{
+	int x = 1;
+	return *reinterpret_cast<char*>(&x) != 0;
+}
+
+template <typename T>
+T* reverse_endian(T* p)
+{
+	std::reverse(reinterpret_cast<char*>(p),
+		reinterpret_cast<char*>(p) + sizeof(T));
+	return p;
 }
 #endif
 
