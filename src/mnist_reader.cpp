@@ -14,7 +14,7 @@ static uint64_t item_num = 0;
 static int64_t file_size = -1;
 static int64_t buff_len = 512;
 static int64_t read_len = 0;
-static std::unique_ptr<asio_read> asio_read_ptr;
+static std::shared_ptr<asio_read> asio_read_ptr;
 
 
 int64_t get_file_size(const char* file_name)
@@ -49,7 +49,7 @@ void* create_item_reader(const char* file_path)
 #endif
 
     get_item_number(fm);
-    asio_read_ptr = std::make_unique<asio_read>((void*)fm, buff_len, read_len, file_size);
+    asio_read_ptr = std::make_shared<asio_read>((void*)fm, buff_len, read_len, file_size);
     asio_read_ptr->run();
     return fm;
 }
@@ -76,7 +76,7 @@ int read_item_data(void* handle, char* buf, int* len)
         return -1;
     }
     else if (!asio_read_ptr) {
-        asio_read_ptr = std::make_unique<asio_read>(handle, read_len, buff_len, file_size);
+        asio_read_ptr = std::make_shared<asio_read>(handle, read_len, buff_len, file_size);
         asio_read_ptr->run();
     }
 

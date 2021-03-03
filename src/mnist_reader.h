@@ -45,7 +45,7 @@ extern "C"
 
 #endif
 
-inline bool is_little_endian()
+bool is_little_endian()
 {
 	int x = 1;
 	return *reinterpret_cast<char*>(&x) != 0;
@@ -84,7 +84,7 @@ protected:
 	CThreadSafeQueue<CDataPkg_ptr_t> m_buff_queue;
 	enum STATUS m_run_state;
 	std::atomic<bool> m_stop_read;
-	std::unique_ptr<std::thread> m_read_thread_ptr;
+	std::shared_ptr<std::thread> m_read_thread_ptr;
 
 public:
 
@@ -103,7 +103,7 @@ public:
 
 	inline void run() {
 		if(m_run_state == STATUS::READY&& !m_read_thread_ptr)
-			m_read_thread_ptr = std::make_unique<std::thread>(&asio_read::read_data_daemon, this);
+			m_read_thread_ptr = std::make_shared<std::thread>(&asio_read::read_data_daemon, this);
 	}
 
 	inline void stop() {
