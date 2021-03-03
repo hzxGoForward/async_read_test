@@ -75,14 +75,14 @@ protected:
 	boost::asio::windows::random_access_handle* m_stream_ptr = nullptr;
 #endif
 	
-	void* m_handle = nullptr;
-	int64_t m_buff_len = 512;
-	int64_t m_total_read = 0;
+	void* m_handle;
+	int64_t m_buff_len;
+	int64_t m_total_read;
 	int64_t m_read_len;
 	boost::asio::io_service m_ios;
 	CThreadSafeQueue<CDataPkg_ptr_t> m_buff_queue;
 	enum STATUS m_run_state;
-	std::atomic<bool> m_stop_read = false;
+	std::atomic<bool> m_stop_read;
 	std::unique_ptr<std::thread> m_read_thread_ptr;
 
 public:
