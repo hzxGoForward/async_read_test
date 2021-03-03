@@ -24,6 +24,19 @@
 #include <windows.h>
 #endif
 
+inline bool is_little_endian()
+{
+	int x = 1;
+	return *reinterpret_cast<char*>(&x) != 0;
+}
+
+template <typename T>
+inline T* reverse_endian(T* p)
+{
+	std::reverse(reinterpret_cast<char*>(p),
+		reinterpret_cast<char*>(p) + sizeof(T));
+	return p;
+}
 
 #ifdef __cplusplus
 extern "C"
@@ -39,25 +52,9 @@ extern "C"
 
 #ifdef __cplusplus
 }
-
-
 #endif
 
-#endif
 
-bool is_little_endian()
-{
-	int x = 1;
-	return *reinterpret_cast<char*>(&x) != 0;
-}
-
-template <typename T>
-T* reverse_endian(T* p)
-{
-	std::reverse(reinterpret_cast<char*>(p),
-		reinterpret_cast<char*>(p) + sizeof(T));
-	return p;
-}
 
 enum class STATUS
 {
@@ -163,3 +160,6 @@ protected:
 		}
 	}
 };
+
+
+#endif
