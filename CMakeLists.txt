@@ -32,7 +32,7 @@ endif()
 
 # 允许c++11标准、O3优化、多线程。match选项可避免一些cpu上的问题
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-	SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -march=native -pthread" )
+	SET( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -march=native -pthread" )
     # target_link_libraries (${PROJECT_NAME} boost_system boost_filesystem boost_program_options)
 endif()
 
