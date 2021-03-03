@@ -90,7 +90,7 @@ public:
 	asio_read(void* handle, const int64_t buff_len, const int64_t read_len, const int64_t total_read) :m_handle(handle), m_buff_len(buff_len),m_total_read(total_read),m_read_len(read_len), m_ios(),m_buff_queue(256) {
 		m_run_state = STATUS::READY;
 		m_stop_read.store(false);
-		m_read_thread_ptr = false;
+		m_read_thread_ptr = nullptr;
 		
 	}
 	~asio_read() {
