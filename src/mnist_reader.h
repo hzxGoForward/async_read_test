@@ -40,6 +40,11 @@ extern "C"
 #ifdef __cplusplus
 }
 
+
+#endif
+
+#endif
+
 inline bool is_little_endian()
 {
 	int x = 1;
@@ -53,10 +58,6 @@ T* reverse_endian(T* p)
 		reinterpret_cast<char*>(p) + sizeof(T));
 	return p;
 }
-#endif
-
-#endif
-
 
 enum class STATUS
 {
